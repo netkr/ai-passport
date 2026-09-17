@@ -3,9 +3,10 @@
 // 为什么单独抽一个头文件:
 //   1. 中文 UI 的字体子集必须覆盖这里出现的每一个字符。文案散落在各页代码里,
 //      就没有办法用自动化检查保证"字体覆盖了界面上所有会显示的字"。
-//   2. tests/test_app_font_coverage.py 直接解析本文件,提取全部 CJK 字符,
-//      与 assets/fonts/ 下生成的字体的 unicode 表比对 —— 漏字会在主机测试阶段
-//      就失败,而不是等到真机上看到方块。
+//   2. tests/test_app_font_coverage.py 直接解析本文件,提取全部 CJK 字符,与
+//      assets/fonts/app_font_charset.txt 及两份生成字体的 unicode 表比对 ——
+//      改了文案却忘了重新生成字体,会在主机测试阶段就失败,而不是等到真机上
+//      看到方块。
 //
 // 改动本文件后必须重新生成字体,步骤见 assets/README.md 的 Fonts 一节。
 #pragma once
