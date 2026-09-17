@@ -34,6 +34,9 @@ typedef enum {
     HABIT_UI_EFFECT_NONE = 0,
     HABIT_UI_EFFECT_RECORDS_CHANGED = 1u << 0,  // 记录有变,应落盘
     HABIT_UI_EFFECT_DATE_CHANGED = 1u << 1,     // 用户确定了日期,应更新墙钟并落盘
+    // 操作被拒(例如当天已打卡)。单独成一位置而不是"无副作用",是为了让应用层
+    // 能给出负向反馈(低音提示),否则重复打卡在听觉上毫无差别。
+    HABIT_UI_EFFECT_REJECTED = 1u << 2,
 } habit_ui_effect_t;
 
 // 建立并载入主菜单。进入前 LVGL 必须已就绪。

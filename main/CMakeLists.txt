@@ -7,6 +7,7 @@ idf_component_register(
          "habit_clock.c"
          "habit_store.c"
          "habit_device.c"
+         "habit_audio.c"
     INCLUDE_DIRS "."
     # 本应用不再使用 Wi-Fi/BLE/网络栈:基线的 demo 页面已不参与构建,
     # 相应的组件依赖也一并去掉,避免把不用的协议栈编进固件。

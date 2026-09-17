@@ -22,6 +22,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "habit_audio.h"
 #include "habit_clock.h"
 #include "habit_device.h"
 #include "habit_date.h"
@@ -101,14 +102,18 @@ static void save_records(void)
     if (!s_state.storage_ok) return;
     const esp_err_t err = habit_device_save(&s_state.records, s_state.today, now_sec());
     if (err != ESP_OK) {
-        // 不静默:打卡没存下必须让用户看见,否则重启后记录凭空消失。
+        // 不静默:打卡没存下必须让用户看见和听见,否则重启后记录凭空消失。
         ESP_LOGE(TAG, "打卡记录落盘失败: %s", esp_err_to_name(err));
+        habit_audio_play(HABIT_SOUND_REJECTED);
         habit_ui_show_save_failed();
     }
 }
 
 static void apply_effect(habit_ui_effect_t effect)
 {
+    // 听觉反馈由应用层决定,界面只报告"发生了什么"。
+    if ((effect & HABIT_UI_EFFECT_REJECTED) != 0) habit_audio_play(HABIT_SOUND_REJECTED);
+
     if ((effect & HABIT_UI_EFFECT_DATE_CHANGED) != 0) {
         const uint64_t rtc = habit_device_rtc_us();
         habit_clock_set_date(&s_state.clock, rtc, s_state.edit_date);
@@ -117,7 +122,10 @@ static void apply_effect(habit_ui_effect_t effect)
         refresh_mark();  // 立即建立锚点,缩短下次掉电后需要人工确认的窗口
         save_records();  // 日期基准变了,把墙钟一并写进持久数据
     }
-    if ((effect & HABIT_UI_EFFECT_RECORDS_CHANGED) != 0) save_records();
+    if ((effect & HABIT_UI_EFFECT_RECORDS_CHANGED) != 0) {
+        save_records();
+        habit_audio_play(HABIT_SOUND_OK);
+    }
 }
 
 // 跨天:记录按逻辑日索引,所以只需推进 today 并重建界面(日期栏与打卡状态
@@ -169,6 +177,9 @@ void habit_app_run(void)
         return;
     }
     bsp_display_backlight(100);
+
+    // 提示音是软依赖:失败只是没声音,界面与记录照常。
+    (void)habit_audio_init();
 
     // 电量计是软依赖:不在或读取失败时 bsp_battery_soc() 返回 -1,
     // 界面会隐藏电量项而不是画一个假数字。

@@ -476,8 +476,9 @@ static habit_ui_effect_t confirm_key(bsp_btn_t btn, bsp_btn_ev_t event)
         return HABIT_UI_EFFECT_RECORDS_CHANGED;
     }
     result_build(STR_ALREADY, UI_TODO);
-    // 重复打卡不产生写入,也不返回副作用 —— 避免无意义的 Flash 写入。
-    return HABIT_UI_EFFECT_NONE;
+    // 不产生写入,也不返回 RECORDS_CHANGED —— 避免无意义的 Flash 写入;
+    // 但要单独告知"被拒",让应用层给出不同的提示音。
+    return HABIT_UI_EFFECT_REJECTED;
 }
 
 static habit_ui_effect_t records_key(bsp_btn_t btn, bsp_btn_ev_t event)
