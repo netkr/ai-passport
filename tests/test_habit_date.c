@@ -101,6 +101,87 @@ static void test_logical_day_boundary(void)
     assert(habit_date_logical_day(-HABIT_SECS_PER_DAY) == -2);
 }
 
+static void test_adjust_day(void)
+{
+    // 普通加减。
+    assert(habit_date_adjust((habit_date_t){ .year = 2026, .month = 9, .day = 17 },
+                             HABIT_FIELD_DAY, 1).day == 18);
+    assert(habit_date_adjust((habit_date_t){ .year = 2026, .month = 9, .day = 17 },
+                             HABIT_FIELD_DAY, -1).day == 16);
+
+    // 日字段在当月内循环,不进位到月份 —— 这是刻意的语义(见 habit_date.h):
+    // 编辑日字段时不应该悄悄改掉月份。
+    const habit_date_t end_of_sep = habit_date_adjust(
+        (habit_date_t){ .year = 2026, .month = 9, .day = 30 }, HABIT_FIELD_DAY, 1);
+    assert(end_of_sep.month == 9 && end_of_sep.day == 1);
+
+    // 往回循环落在当月最后一天:10 月是 31 天,所以 1 日减一天是 31 日。
+    const habit_date_t start_of_oct = habit_date_adjust(
+        (habit_date_t){ .year = 2026, .month = 10, .day = 1 }, HABIT_FIELD_DAY, -1);
+    assert(start_of_oct.month == 10 && start_of_oct.day == 31);
+
+    // 9 月只有 30 天,同一操作给出 30 日 —— 循环边界随月份长度变化。
+    const habit_date_t start_of_sep = habit_date_adjust(
+        (habit_date_t){ .year = 2026, .month = 9, .day = 1 }, HABIT_FIELD_DAY, -1);
+    assert(start_of_sep.month == 9 && start_of_sep.day == 30);
+
+    // 2 月长度按闰年变化:闰年 29 日加一天回到 1 日。
+    const habit_date_t feb_end = habit_date_adjust(
+        (habit_date_t){ .year = 2024, .month = 2, .day = 29 }, HABIT_FIELD_DAY, 1);
+    assert(feb_end.month == 2 && feb_end.day == 1);
+}
+
+static void test_adjust_month_clamps_day(void)
+{
+    // 这是最容易出错的一处:1月31日 加一月不能变成 2月31日。
+    const habit_date_t jan31 = { .year = 2026, .month = 1, .day = 31 };
+    const habit_date_t feb = habit_date_adjust(jan31, HABIT_FIELD_MONTH, 1);
+    assert(feb.month == 2 && feb.day == 28);
+
+    // 闰年同一步必须给出 29。
+    const habit_date_t leap_feb =
+        habit_date_adjust((habit_date_t){ .year = 2024, .month = 1, .day = 31 },
+                          HABIT_FIELD_MONTH, 1);
+    assert(leap_feb.month == 2 && leap_feb.day == 29);
+
+    // 3月31日 回退到 2 月同样要收敛。
+    const habit_date_t back =
+        habit_date_adjust((habit_date_t){ .year = 2026, .month = 3, .day = 31 },
+                          HABIT_FIELD_MONTH, -1);
+    assert(back.month == 2 && back.day == 28);
+
+    // 月份循环。
+    const habit_date_t roll =
+        habit_date_adjust((habit_date_t){ .year = 2026, .month = 12, .day = 15 },
+                          HABIT_FIELD_MONTH, 1);
+    assert(roll.month == 1 && roll.day == 15 && roll.year == 2026);
+
+    const habit_date_t wrap_back =
+        habit_date_adjust((habit_date_t){ .year = 2026, .month = 1, .day = 1 },
+                          HABIT_FIELD_MONTH, -1);
+    assert(wrap_back.month == 12 && wrap_back.day == 1);
+}
+
+static void test_adjust_year_cycles_and_clamps(void)
+{
+    // 年份在支持范围内循环,不在边界卡死。
+    const habit_date_t top =
+        habit_date_adjust((habit_date_t){ .year = HABIT_YEAR_MAX, .month = 6, .day = 15 },
+                          HABIT_FIELD_YEAR, 1);
+    assert(top.year == HABIT_YEAR_MIN && top.month == 6 && top.day == 15);
+
+    const habit_date_t bottom =
+        habit_date_adjust((habit_date_t){ .year = HABIT_YEAR_MIN, .month = 6, .day = 15 },
+                          HABIT_FIELD_YEAR, -1);
+    assert(bottom.year == HABIT_YEAR_MAX);
+
+    // 闰日跨到非闰年必须收敛,否则会产生 2025-02-29。
+    const habit_date_t leap_day =
+        habit_date_adjust((habit_date_t){ .year = 2024, .month = 2, .day = 29 },
+                          HABIT_FIELD_YEAR, 1);
+    assert(leap_day.year == 2025 && leap_day.month == 2 && leap_day.day == 28);
+}
+
 int main(void)
 {
     test_epoch_days();
@@ -108,5 +189,8 @@ int main(void)
     test_days_in_month();
     test_is_valid();
     test_logical_day_boundary();
+    test_adjust_day();
+    test_adjust_month_clamps_day();
+    test_adjust_year_cycles_and_clamps();
     return 0;
 }

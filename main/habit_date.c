@@ -59,6 +59,45 @@ int8_t habit_date_weekday(int32_t days)
     return (int8_t)(((days % 7) + 7 + 3) % 7);
 }
 
+static habit_date_t clamp_day(habit_date_t date)
+{
+    const int32_t limit = habit_date_days_in_month(date.year, date.month);
+    if (date.day > limit) date.day = (uint8_t)limit;
+    if (date.day < 1) date.day = 1;
+    return date;
+}
+
+habit_date_t habit_date_adjust(habit_date_t date, habit_date_field_t field, int delta)
+{
+    switch (field) {
+    case HABIT_FIELD_YEAR: {
+        int32_t year = date.year + delta;
+        const int32_t span = HABIT_YEAR_MAX - HABIT_YEAR_MIN + 1;
+        // 循环而不是夹紧:用户按住上/下键时不会在边界上"卡死"。
+        while (year > HABIT_YEAR_MAX) year -= span;
+        while (year < HABIT_YEAR_MIN) year += span;
+        date.year = year;
+        return clamp_day(date);  // 2024-02-29 加一年 → 2025-02-28
+    }
+    case HABIT_FIELD_MONTH: {
+        int32_t month = (int32_t)date.month + delta;
+        while (month > 12) month -= 12;
+        while (month < 1) month += 12;
+        date.month = (uint8_t)month;
+        return clamp_day(date);
+    }
+    case HABIT_FIELD_DAY:
+    default: {
+        int32_t day = (int32_t)date.day + delta;
+        const int32_t limit = habit_date_days_in_month(date.year, date.month);
+        while (day > limit) day -= limit;
+        while (day < 1) day += limit;
+        date.day = (uint8_t)day;
+        return date;
+    }
+    }
+}
+
 int32_t habit_date_logical_day(int64_t wall_sec)
 {
     // 负数也要向下取整,否则 1970 年之前的墙钟会算错一天。

@@ -41,6 +41,27 @@ int32_t habit_date_days_in_month(int32_t year, int month);
 // 0 = 周一 .. 6 = 周日。
 int8_t habit_date_weekday(int32_t days);
 
+// 日期设置页可调整的字段。
+typedef enum {
+    HABIT_FIELD_YEAR = 0,
+    HABIT_FIELD_MONTH,
+    HABIT_FIELD_DAY,
+} habit_date_field_t;
+
+// 按 delta(通常 ±1)调整某个字段,越界时**在该字段内循环**,不进位到上位字段:
+//   日:9月30日 加一天 → 9月1日(不会变成 10月1日)
+//   月:12月 加一月 → 次年之外的 1月(年不变,月自身循环)
+//   年:HABIT_YEAR_MAX 加一年 → HABIT_YEAR_MIN
+//
+// 这样三个字段彼此独立,用户在编辑日字段时不会意外改掉月份。代价是不能靠
+// 连续按"下"走完一整年 —— 但设置日期时月份本来就用月字段跳,不依赖日的进位。
+//
+// 唯一例外是"收敛":调整年或月之后,日会按新月份的长度收缩,因为 2月31日
+// 这种日期不存在,无从循环。
+//   1月31日 加一月 → 2月28日(闰年 2月29日)
+//   2024-02-29 加一年 → 2025-02-28
+habit_date_t habit_date_adjust(habit_date_t date, habit_date_field_t field, int delta);
+
 // 墙钟秒 → 逻辑日(已计入 4 点边界)。返回值即 habit_date_to_days 的刻度,
 // 因此可以直接和记录槽里的 day 比较。
 int32_t habit_date_logical_day(int64_t wall_sec);
