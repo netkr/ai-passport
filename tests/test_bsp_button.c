@@ -46,6 +46,18 @@ esp_err_t adc_cali_raw_to_voltage(adc_cali_handle_t h, int raw, int *mv) {
     *mv = raw; return ESP_OK;
 }
 int64_t esp_timer_get_time(void) { return clock_us; }
+static int fail_gpio_config, fail_wakeup, wakeup_calls;
+static uint64_t wakeup_mask;
+static esp_deepsleep_gpio_wake_up_mode_t wakeup_mode;
+static gpio_config_t gpio_cfg;
+esp_err_t gpio_config(const gpio_config_t *config) {
+    gpio_cfg = *config;
+    return fail_gpio_config ? ESP_FAIL : ESP_OK;
+}
+esp_err_t esp_deep_sleep_enable_gpio_wakeup(uint64_t mask, esp_deepsleep_gpio_wake_up_mode_t mode) {
+    ++wakeup_calls; wakeup_mask = mask; wakeup_mode = mode;
+    return fail_wakeup ? ESP_ERR_INVALID_ARG : ESP_OK;
+}
 esp_err_t iot_button_create(const button_config_t *cfg, const button_driver_t *driver, button_handle_t *h) {
     (void)cfg;
     if (++create_calls == fail_create) return ESP_ERR_NO_MEM;
@@ -121,9 +133,36 @@ int main(void) {
     check_voltage(447, BSP_BTN_OK); check_voltage(1899, BSP_BTN_OK);
     check_voltage(1900, -1); check_voltage(3300, -1);
     assert(bsp_button_read_mv() == 3300);
+    // 按住检测:读数落在任一窗口内为真。深睡按键唤醒后,应用靠它等唤醒键松开,
+    // 窗口边界必须和按键解码完全一致。
+    assert(!bsp_button_any_pressed());
+    raw_mv = 0;    assert(bsp_button_any_pressed());
+    raw_mv = 300;  assert(bsp_button_any_pressed());
+    raw_mv = 600;  assert(bsp_button_any_pressed());
+    raw_mv = 1900; assert(!bsp_button_any_pressed());
+    raw_mv = 3300;
+    // 唤醒源:第一个参数必须是【位掩码】而不是引脚号。传引脚号 0 等于空掩码,
+    // 函数会报错且一个唤醒源都不配 —— 那正是"睡了按不醒"的根因。
+    assert(bsp_button_arm_wakeup() == ESP_OK);
+    assert(wakeup_calls == 1 && wakeup_mask == (1ULL << BSP_BTN_GPIO));
+    assert(wakeup_mask != 0);
+    assert(wakeup_mode == ESP_GPIO_WAKEUP_GPIO_LOW);
+    assert(gpio_cfg.pin_bit_mask == (1ULL << BSP_BTN_GPIO));
+    assert(gpio_cfg.mode == GPIO_MODE_INPUT);
+    assert(gpio_cfg.pull_up_en == GPIO_PULLUP_DISABLE);
+    assert(gpio_cfg.pull_down_en == GPIO_PULLDOWN_DISABLE);
+    // 配置或唤醒源任一步失败都必须向上报错:调用方据此放弃休眠。
+    fail_gpio_config = 1;
+    assert(wakeup_calls == 1 && bsp_button_arm_wakeup() == ESP_FAIL);
+    fail_gpio_config = 0; fail_wakeup = 1;
+    assert(bsp_button_arm_wakeup() == ESP_ERR_INVALID_ARG);
+    fail_wakeup = 0;
+    assert(bsp_button_arm_wakeup() == ESP_OK && wakeup_calls == 3);
     fail_read = 1; clock_us += 2000;
     for (int i = 0; i < BSP_BTN_COUNT; ++i) assert(!button_level(&s_drivers[i].base));
     assert(bsp_button_read_mv() == -1);
+    // 读不到电压时不阻塞调用方:等松开的应用逻辑必须继续往下走。
+    assert(!bsp_button_any_pressed());
     fail_read = 0; fail_convert = 1; clock_us += 2000;
     for (int i = 0; i < BSP_BTN_COUNT; ++i) assert(!button_level(&s_drivers[i].base));
     assert(bsp_button_read_mv() == -1);

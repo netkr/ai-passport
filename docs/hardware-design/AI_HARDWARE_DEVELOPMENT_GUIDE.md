@@ -146,6 +146,8 @@ Do not replace the external resistor with the inaccurate internal pull-up. The B
 
 Calibrate thresholds using multiple boards, charge levels, and reasonable temperatures; leave margin between measured distributions rather than relying only on divider theory.
 
+ESP32-C3 has no EXT0/EXT1 wakeup. `bsp_button_arm_wakeup()` arms the shared ADC node as a **low-level** deep-sleep wake source, so any of the three keys wakes the chip; the return value must be checked, because a wake source that failed to arm means the device sleeps with no way to wake it. `esp_deep_sleep_enable_gpio_wakeup()` takes a pin *bitmask*, not a pin number. `bsp_button_any_pressed()` reports whether the current reading falls inside any key window; an application that wakes on a key press needs it to wait for that same press to be released, because the button component mirrors a press that is still held at boot into a normal click.
+
 ## 7. Shared I2C
 
 I2C0 uses SDA GPIO10 and SCL GPIO7. ES8311 is 7-bit address `0x18`; CW2017 is `0x63`. `bsp_i2c.c` exclusively owns the bus.

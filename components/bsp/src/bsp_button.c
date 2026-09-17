@@ -3,10 +3,12 @@
 #include "bsp_button.h"
 #include "bsp_pins.h"
 #include "iot_button.h"
+#include "driver/gpio.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_log.h"
+#include "esp_sleep.h"
 #include "esp_timer.h"
 
 static const char *TAG = "bsp_btn";
@@ -209,4 +211,49 @@ int bsp_button_read_mv(void) {
     if (adc_oneshot_read(s_adc, BSP_BTN_ADC_CHANNEL, &raw) != ESP_OK) return -1;
     if (adc_cali_raw_to_voltage(s_cali, raw, &mv) != ESP_OK) return -1;
     return mv;
+}
+
+bool bsp_button_any_pressed(void) {
+    const int mv = bsp_button_read_mv();
+    // 读不到时返回 false:调用方是"等松开"的等待逻辑,读取故障不该把它卡住。
+    if (mv < 0) return false;
+    for (int i = 0; i < BSP_BTN_COUNT; i++) {
+        if (mv >= BTN_MV[i][0] && mv < BTN_MV[i][1]) return true;
+    }
+    return false;
+}
+
+esp_err_t bsp_button_arm_wakeup(void) {
+    // 低电平唤醒:松开时由板上 10k 上拉维持在 3.3V;三个键分别把节点拉到
+    // 0 / 300 / 595 mV(见 bsp_pins.h),都远低于输入低电平阈值。
+    // 内部上拉由 ESP-IDF 在进入 deep sleep 时按唤醒电平自动配置
+    // (CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS 默认开),与本函数无关。
+    //
+    // 这里会把 ADC 引脚重新配成数字输入(ADC 驱动平时把它配成纯模拟脚、关掉数字
+    // 输入)。模拟通路不受影响,ADC 仍能读;代价只是多一点点数字输入负载,而本函数
+    // 只在入睡前调用,所以不修正 —— 但不要把它当成开机就能随便调的配置。
+    const gpio_config_t cfg = {
+        .pin_bit_mask = 1ULL << BSP_BTN_GPIO,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    esp_err_t err = gpio_config(&cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "GPIO%d 配置为输入失败: %s", BSP_BTN_GPIO, esp_err_to_name(err));
+        return err;
+    }
+
+    // ⚠ 第一个参数是【位掩码】而不是引脚号:传 GPIO_NUM_0(值 0)等于空掩码,
+    //   函数会报错且一个唤醒源都不配;若忽略返回值就睡下去,现象是"睡了按不醒"。
+    err = esp_deep_sleep_enable_gpio_wakeup(1ULL << BSP_BTN_GPIO,
+                                            ESP_GPIO_WAKEUP_GPIO_LOW);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "GPIO%d 低电平唤醒源配置失败: %s", BSP_BTN_GPIO,
+                 esp_err_to_name(err));
+        return err;
+    }
+    ESP_LOGI(TAG, "按键唤醒源就绪:GPIO%d 低电平", BSP_BTN_GPIO);
+    return ESP_OK;
 }

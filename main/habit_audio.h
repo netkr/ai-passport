@@ -14,5 +14,13 @@ typedef enum {
 // 初始化音频并建立播放任务。失败返回错误,但不影响界面与记录功能。
 esp_err_t habit_audio_init(void);
 
-// 投递一次播放请求。不阻塞,可在事件任务里直接调用。
+// 投递一次播放请求。不阻塞,可在事件任务里直接调用。挂起期间请求会被丢弃。
 void habit_audio_play(habit_sound_t sound);
+
+// 停止播放任务并确认它不再写 PCM。深睡前必须先调用:bsp_audio_sleep() 与
+// bsp_audio_write() 并发会破坏 ES8311 的挂起寄存器序列。
+//
+// 有界等待(超时返回 ESP_ERR_TIMEOUT)。返回非 ESP_OK 时【不得】继续进入休眠 ——
+// 那等于在播放任务可能仍在写 PCM 的情况下挂起 codec。超时后音频恢复正常可用
+// (本次播放可能已丢弃),调用方直接放弃本次休眠即可。
+esp_err_t habit_audio_suspend(void);

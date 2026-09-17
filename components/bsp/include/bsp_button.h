@@ -3,6 +3,7 @@
 #pragma once
 
 #include "esp_err.h"
+#include <stdbool.h>
 
 // 按键索引。数量用 bsp_pins.h 的 BSP_BTN_COUNT(硬件属性,归引脚表管),
 // 这里不再定义尾项计数,避免出现 BSP_BTN_COUNT / BSP_BTN_COUNT_ 两个近似名字。
@@ -31,3 +32,16 @@ esp_err_t bsp_button_init(bsp_btn_cb_t cb, void *user);
 // ★ 换了分压/上拉阻值后,用它测出自己的三档电压,再改 bsp_pins.h 的 BSP_BTN_MV_TABLE。
 // 读取失败返回 -1。
 int bsp_button_read_mv(void);
+
+// 当前是否有键被按住(读数落在任一电压窗口内)。松开或读取失败返回 false。
+// 用途:深睡按键唤醒后,那个唤醒来电的按键在启动时通常还按着 —— 应用需要先等它
+// 松开,否则这次按下会被按键组件镜像成一次误操作。
+bool bsp_button_any_pressed(void);
+
+// deep sleep 专用：把 BSP_BTN_GPIO(三键共用的 ADC 节点)配成【低电平】唤醒源。
+// 板上三键都把这个节点拉低(见 bsp_pins.h 的分压表),所以任意键都能唤醒。
+// ESP32-C3 没有 EXT0/EXT1,只有 GPIO 唤醒。
+//
+// ⚠ 调用方【必须】检查返回值:返回错误说明唤醒源没装上,此时进入 deep sleep 就是
+//   "睡了按不醒"。另外 GPIO 唤醒的第一个参数是位掩码而非引脚号,本函数内部已处理。
+esp_err_t bsp_button_arm_wakeup(void);
