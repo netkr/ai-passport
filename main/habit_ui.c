@@ -632,7 +632,7 @@ static habit_ui_effect_t records_key(bsp_btn_t btn, bsp_btn_ev_t event)
     }
 
     if (event == BSP_BTN_CLICK && btn == BSP_BTN_OK) {
-        // 换项:六项循环,和主菜单的上下键一样是环绕语义。
+        // 换项:环绕循环,和主菜单的上下键一样是环绕语义。
         s_state->record_selected = (s_state->record_selected + 1) % HABIT_COUNT;
         calendar_refresh();
     }
@@ -650,19 +650,16 @@ static habit_ui_effect_t date_key(bsp_btn_t btn, bsp_btn_ev_t event)
     }
 
     if (event == BSP_BTN_CLICK && btn == BSP_BTN_OK) {
-        if (s_state->edit_field < HABIT_FIELD_DAY) {
-            s_state->edit_field++;
-            date_refresh();
-            return HABIT_UI_EFFECT_NONE;
-        }
-        // 最后一段确认:交给应用层更新墙钟基准并落盘。
-        menu_build();
-        return HABIT_UI_EFFECT_DATE_CHANGED;
+        // 字段循环:DAY 之后回到 YEAR,这样从任何字段开始都能改年/月/日。
+        s_state->edit_field = (s_state->edit_field + 1) % (HABIT_FIELD_DAY + 1);
+        date_refresh();
+        return HABIT_UI_EFFECT_NONE;
     }
 
-    // 首次设置不允许取消:否则应用没有可用日期,主菜单的日期栏就是错的。
-    if (event == BSP_BTN_LONG && btn == BSP_BTN_OK && !s_date_first_time) {
+    // 长按 OK 确认日期:首次设置和掉电确认都走这里。
+    if (event == BSP_BTN_LONG && btn == BSP_BTN_OK) {
         menu_build();
+        return HABIT_UI_EFFECT_DATE_CHANGED;
     }
     return HABIT_UI_EFFECT_NONE;
 }
@@ -684,8 +681,6 @@ void habit_ui_show_menu(habit_ui_state_t *state)
 void habit_ui_show_date(habit_ui_state_t *state, bool first_time)
 {
     s_state = state;
-    // 首次设置从年份开始(要从头定日期);掉电后确认则从"日"开始 ——
-    // 那种情况下用户多半只需要修正到当天,少按两下确认键。
     s_state->edit_field = first_time ? HABIT_FIELD_YEAR : HABIT_FIELD_DAY;
     if (!bsp_lvgl_lock(1000)) {
         ESP_LOGE(TAG, "LVGL 加锁超时,无法建立日期页");
