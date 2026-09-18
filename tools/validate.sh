@@ -10,6 +10,7 @@ usage() {
 
 run_static_checks() {
     local actionlint_bin
+    local gc_sections_flag
     local test_dir
 
     python3 tools/check_repo.py
@@ -24,6 +25,12 @@ run_static_checks() {
     "${actionlint_bin}" -color .github/workflows/*.yml
 
     test_dir="$(mktemp -d /tmp/ai-passport-host-tests.XXXXXX)"
+    # ld64 (macOS) rejects GNU ld's --gc-sections; -dead_strip is its equivalent.
+    gc_sections_flag="-Wl,-dead_strip"
+    if printf 'int main(void){return 0;}\n' | "${CC:-cc}" -x c - -Wl,--gc-sections \
+        -o "${test_dir}/gc_probe" >/dev/null 2>&1; then
+        gc_sections_flag="-Wl,--gc-sections"
+    fi
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_ui_pixel_math.c main/ui_pixel_math.c \
         -o "${test_dir}/test_ui_pixel_math"
@@ -32,6 +39,22 @@ run_static_checks() {
         tests/test_demo_navigation.c main/demo_navigation.c \
         -o "${test_dir}/test_demo_navigation"
     "${test_dir}/test_demo_navigation"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_habit_date.c main/habit_date.c \
+        -o "${test_dir}/test_habit_date"
+    "${test_dir}/test_habit_date"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_habit_model.c main/habit_model.c main/habit_date.c \
+        -o "${test_dir}/test_habit_model"
+    "${test_dir}/test_habit_model"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_habit_clock.c main/habit_clock.c main/habit_date.c \
+        -o "${test_dir}/test_habit_clock"
+    "${test_dir}/test_habit_clock"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_habit_store.c main/habit_store.c main/habit_model.c main/habit_date.c \
+        -o "${test_dir}/test_habit_store"
+    "${test_dir}/test_habit_store"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Icomponents/bsp/src \
         tests/test_bsp_display_rounding.c components/bsp/src/bsp_display_rounding.c \
         -o "${test_dir}/test_bsp_display_rounding"
@@ -57,10 +80,11 @@ run_static_checks() {
     for demo in audio low_power ble wifi; do
         "${CC:-cc}" -std=c11 -Wall -Wextra -Werror \
             -ffunction-sections -fdata-sections -Itests/demo_stubs -Imain \
-            "tests/test_demo_${demo}_runtime.c" -Wl,--gc-sections \
+            "tests/test_demo_${demo}_runtime.c" "${gc_sections_flag}" \
             -o "${test_dir}/test_demo_${demo}_runtime"
         "${test_dir}/test_demo_${demo}_runtime"
     done
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_app_font_coverage.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_verify_firmware.py

@@ -52,6 +52,9 @@
 // ============================================================================
 #define BSP_BTN_ADC_UNIT     ADC_UNIT_1
 #define BSP_BTN_ADC_CHANNEL  ADC_CHANNEL_0    // GPIO0
+// 该 ADC 通道对应的引脚(ESP32-C3 上 ADC1_CH0 固定为 GPIO0)。深睡按键唤醒用的
+// 也是它:硬件上没有"按键中断线",三个键都把同一个节点拉低。
+#define BSP_BTN_GPIO         0
 #define BSP_BTN_COUNT        3
 
 // 每键的电压窗口 {min_mV, max_mV};边界取相邻档中点。

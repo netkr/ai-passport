@@ -39,6 +39,12 @@ def function_body(source: str, name: str) -> str:
     raise AssertionError(f"function is unterminated: {name}")
 
 
+def strip_comments(source: str) -> str:
+    """Drop comments so an ordering assertion cannot be satisfied by prose."""
+    without_blocks = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    return re.sub(r"//[^\n]*", "", without_blocks)
+
+
 def register_pairs(block: str) -> list[tuple[int, int]]:
     return [
         (int(reg, 16), int(value, 16))
@@ -54,6 +60,7 @@ class DeepSleepContractTest(unittest.TestCase):
         cls.display = read("components/bsp/src/bsp_display.c")
         cls.i2c = read("components/bsp/src/bsp_i2c.c")
         cls.demo = read("main/demo_low_power.c")
+        cls.app = read("main/habit_app.c")
 
     def test_es8311_force_sleep_sequence_is_complete_and_ordered(self) -> None:
         expected = [
@@ -152,6 +159,36 @@ class DeepSleepContractTest(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertLess(body.index("bsp_lvgl_lock(1000)"),
                         body.index("bsp_display_prepare_deep_sleep()"))
+
+    def test_app_terminal_shutdown_order_precedes_deep_sleep(self) -> None:
+        # 派生应用的深睡路径必须和 demo 守同样的顺序与前提:唤醒源与"播放任务已停"
+        # 都先于任何终端步骤(两者失败时要能原地放弃),周期定时器先停(它读 I2C),
+        # 之后才是不可逆的外设关机序列。
+        body = function_body(strip_comments(self.app), "enter_deep_sleep")
+        calls = [
+            "bsp_button_arm_wakeup()",
+            "habit_audio_suspend()",
+            "esp_timer_stop(s_tick_timer)",
+            "save_records()",
+            "bsp_battery_sleep()",
+            "bsp_audio_sleep()",
+            "bsp_audio_prepare_deep_sleep()",
+            "bsp_i2c_prepare_deep_sleep()",
+            "bsp_display_prepare_deep_sleep()",
+            "esp_deep_sleep_start()",
+        ]
+        positions = [body.index(call) for call in calls]
+        self.assertEqual(positions, sorted(positions))
+        self.assertLess(body.index("bsp_lvgl_lock("),
+                        body.index("bsp_display_prepare_deep_sleep()"))
+        # 唤醒源或提示音任务没准备好时必须先返回,而不是把外设关掉一半。
+        self.assertLess(body.index("bsp_button_arm_wakeup()"),
+                        body.index("bsp_battery_sleep()"))
+        self.assertLess(body.index("habit_audio_suspend()"),
+                        body.index("bsp_battery_sleep()"))
+        # esp_deep_sleep_start() 意外返回只能重启:总线已经不可恢复。
+        # 取最后一处 esp_restart():更早那处属于"LVGL 刷屏停不下来"的逃生路径。
+        self.assertLess(body.index("esp_deep_sleep_start()"), body.rindex("esp_restart()"))
 
 
 if __name__ == "__main__":

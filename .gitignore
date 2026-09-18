@@ -5,6 +5,11 @@ managed_components/
 .vscode/
 .idea/
 
+# AI assistant working notes and plan documents. These are local scratch artifacts,
+# not maintained documentation, so they stay out of the repository (and out of the
+# bilingual documentation policy that tools/check_repo.py enforces).
+.trae/
+
 # Generated repository-local links; canonical skill sources live in skills/.
 /.agents/skills/passport-develop
 /.agents/skills/passport-setup

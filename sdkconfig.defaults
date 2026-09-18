@@ -21,12 +21,19 @@ CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 CONFIG_LV_COLOR_DEPTH_16=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
-# LVGL 内置 malloc 池大小(KB)。它是独立静态区、不与系统堆共享,配大了会白白占用 RAM。
-# 本 demo UI 简单,24KB 足够;若自建复杂界面出现绘制卡死/看门狗,调大此值。
-CONFIG_LV_MEM_SIZE_KILOBYTES=24
+# LVGL 内置 malloc 池大小(KB)。它是独立静态区、不与系统堆共享,所以既要够用、
+# 也不该白白占 RAM。
+#
+# 实测依据(打卡应用的月历页):24KB 时一次性创建 42 个格子,建到第 3 行就把整池
+# 用光(建完 3 行只剩 2484 字节,而每行约需 3.4KB),界面随即永久卡死 —— 该池
+# 耗尽时没有优雅退化路径(断言默认关闭,失败不再向上报告)。48KB 给这一页留出
+# 约一倍余量;改动界面后应重新量一次,不要凭感觉调。
+CONFIG_LV_MEM_SIZE_KILOBYTES=48
 
 # --- 系统 ---
 CONFIG_FREERTOS_HZ=1000
+# [临时诊断] 让看门狗转储能给出真实调用栈(否则只有 MEPC/RA 两个地址)。
+CONFIG_ESP_SYSTEM_USE_FRAME_POINTER=y
 
 # --- Bluetooth LE / NimBLE ---
 # ESP32-C3 仅支持 BLE；示例只启用单连接 peripheral 所需的最小 host 配置。

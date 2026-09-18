@@ -17,6 +17,27 @@ Store reusable font files and generated font sources in `fonts/`.
 - Check Flash and internal-RAM impact before adding a font; the ESP32-C3 has no PSRAM.
 - Do not commit fonts whose license does not permit redistribution.
 
+### Pixel subsets for the habit tracker
+
+| File | Format | Use and source |
+| --- | --- | --- |
+| [`fonts/app_font_12.c`](fonts/app_font_12.c) | LVGL 1 bpp, 12 px, 160 glyphs | Body text, hints and calendar day numbers. `glyph_bitmap[]` is 1245 bytes. |
+| [`fonts/app_font_24.c`](fonts/app_font_24.c) | LVGL 1 bpp, 24 px, 160 glyphs | Category names, the month heading, and the check-in result heading. `glyph_bitmap[]` is 3357 bytes; verified to be an exact 2x integer upscale of `app_font_12` rather than a resampled outline. |
+| [`fonts/app_font_charset.txt`](fonts/app_font_charset.txt) | UTF-8 text, 65 code points | The CJK inventory. Derived from the UI text source `main/habit_strings.h`; regenerate it whenever that file changes. |
+
+Both fonts contain printable ASCII `U+0020`-`U+007F` plus the inventory above. Glyph counts exclude the reserved `id = 0` entry in `glyph_dsc[]`; byte figures are the length of the `glyph_bitmap[]` array.
+
+- **Source font:** Ark Pixel Font, 12 px proportional, Simplified Chinese subset, release `2026.09.01`, from `https://github.com/TakWolf/ark-pixel-font`. The source file is `ark-pixel-12px-proportional-zh_cn.ttf` from asset `ark-pixel-font-12px-proportional-ttf-v2026.09.01.zip`. It is intentionally **not committed** (the release archive is 33 MB); download it with `gh release download 2026.09.01 --repo TakWolf/ark-pixel-font --pattern "*12px-proportional-ttf-v*"`.
+- **License:** SIL Open Font License 1.1, copyright (c) 2021 TakWolf. The archive ships `OFL.txt`; keep the generated subsets under the same license and do not use the font name as the generated symbol name.
+- **Converter:** `lv_font_conv` 1.5.3, pinned. Run without a global install:
+  - `--size 12 --lv-font-name app_font_12 --output assets/fonts/app_font_12.c`
+  - `--size 24 --lv-font-name app_font_24 --output assets/fonts/app_font_24.c`
+  - shared flags: `--range 0x20-0x7F --symbols "$(tr -d '\n' < assets/fonts/app_font_charset.txt)" --bpp 1 --format lvgl --no-compress --no-kerning --lv-include lvgl.h`
+- **Do not switch to the 16 px release.** Its CJK coverage is incomplete: of `U+4E00`-`U+4EFF` only 43 of 256 code points are present, and the same holds for the monospaced TTF and the proportional OTF. The 12 px release covers 255 of 256. The 24 px subset is produced by rasterizing the 12 px outline at twice the size, which is exact because these glyph outlines are axis-aligned rectangles on the 12 px grid.
+- **Integration:** registered through `target_sources` in `main/CMakeLists.txt`; select the font on the widget that draws the text, not on the theme.
+- **Flash cost:** 4.5 KB of bitmap data for both subsets. No runtime allocation; no PSRAM is required.
+- **Coverage is enforced.** `tests/test_app_font_coverage.py` extracts the CJK inventory from `main/habit_strings.h`, requires this charset file to match it exactly, and requires both subsets to cover every character the interface can print. Adding UI text without regenerating the fonts fails the host tests instead of showing missing glyphs on the device.
+
 ## Images
 
 Store reusable source images and generated display assets in `images/`.
