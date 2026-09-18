@@ -23,6 +23,19 @@ uint8_t habit_records_mask(const habit_records_t *records, int32_t day)
     return slot->day == day ? slot->mask : 0;
 }
 
+uint32_t habit_records_day_count(const habit_records_t *records, int32_t day)
+{
+    uint8_t mask = habit_records_mask(records, day);
+    // 逐位累加而不是 __builtin_popcount:纯逻辑层要能在任意主机编译器上编译,
+    // 6 位的循环开销在这里毫无意义。
+    uint32_t count = 0;
+    while (mask != 0) {
+        count += mask & 1u;
+        mask = (uint8_t)(mask >> 1);
+    }
+    return count;
+}
+
 habit_checkin_result_t habit_records_check_in(habit_records_t *records, int32_t day,
                                               habit_id_t habit)
 {
@@ -37,6 +50,21 @@ habit_checkin_result_t habit_records_check_in(habit_records_t *records, int32_t 
 
     slot->mask = (uint8_t)(slot->mask | bit);
     return HABIT_CHECKIN_OK;
+}
+
+bool habit_records_undo(habit_records_t *records, int32_t day, habit_id_t habit)
+{
+    habit_slot_t *slot = &records->slots[slot_index(day)];
+    // 槽里存的不是这一天,说明该日根本没有记录 —— 没有可撤销的动作。
+    if (slot->day != day) return false;
+
+    const uint8_t bit = (uint8_t)(1u << (unsigned)habit);
+    if ((slot->mask & bit) == 0) return false;
+
+    // 清位后即使 mask 变 0 也保留 slot->day:读取端以 mask 判断有无记录,
+    // 留着日期可以避免"这一天从没来过"与"来过后被撤销"在数据上混为一谈。
+    slot->mask = (uint8_t)(slot->mask & (uint8_t)~bit);
+    return true;
 }
 
 uint32_t habit_records_streak(const habit_records_t *records, int32_t today,

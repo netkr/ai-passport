@@ -19,8 +19,16 @@ typedef enum {
     HABIT_SLEEP = 0,   // 早睡
     HABIT_EXERCISE,    // 锻炼
     HABIT_QUIT,        // 戒烟
+    // 追加项一律排在后面:枚举值就是记录位图里的 bit 序号,插在中间会把
+    // 已存的老记录解释成另一项。
+    HABIT_WATER,       // 喝水
+    HABIT_READ,        // 阅读
+    HABIT_EARLY_RISE,  // 早起
     HABIT_COUNT,
 } habit_id_t;
+
+// 掩码宽度决定项目数上限:每槽只存 1 字节,超过 8 项就要改存储格式(连带版本号)。
+_Static_assert(HABIT_COUNT <= 8, "每槽 mask 只有 8 位,更多项目需要新的存储格式");
 
 #define HABIT_RECORD_SLOTS 90
 #define HABIT_SLOT_EMPTY INT32_MIN
@@ -44,8 +52,16 @@ void habit_records_clear(habit_records_t *records);
 // 指定日期的打卡位图;无记录返回 0。
 uint8_t habit_records_mask(const habit_records_t *records, int32_t day);
 
+// 指定日期已打卡的项目数(0..HABIT_COUNT)。主菜单的"今日 n/6"用它。
+uint32_t habit_records_day_count(const habit_records_t *records, int32_t day);
+
 habit_checkin_result_t habit_records_check_in(habit_records_t *records, int32_t day,
                                               habit_id_t habit);
+
+// 撤销一次打卡(误打卡的补救)。返回是否真的清掉了一位。
+// 该日无记录、或该项本来就没打卡时返回 false —— 也就是说可以安全地重复调用,
+// 但只有第一次会返回 true。其它项与其它日期不受影响。
+bool habit_records_undo(habit_records_t *records, int32_t day, habit_id_t habit);
 
 // 连续打卡天数(含今天)。今天尚未打卡时从昨天往回数 —— 当天还没结束,
 // 不应提前判定为中断。

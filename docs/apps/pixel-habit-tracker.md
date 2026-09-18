@@ -5,7 +5,7 @@
 # Pixel Habit Tracker
 
 An offline, pixel-art habit check-in application for the FoloToy AI Passport (ESP32-C3).
-Three daily habits, three buttons, no network, no account, no companion app, and records
+Six daily habits, three buttons, no network, no account, no companion app, and records
 that survive a power loss.
 
 This application is a fork-local product: it was designed from the board's BSP and demos
@@ -16,21 +16,64 @@ upstream hardware layer. On-screen text is Simplified Chinese.
 
 | Item | Behaviour |
 | --- | --- |
-| Habits | Early sleep, exercise, and quitting smoking |
+| Habits | Early sleep, exercise, quitting smoking, drinking water, reading, and waking up early |
 | Check-in | One per habit per logical day; a repeat is refused instead of overwritten |
-| Records | 90 ring slots addressed by `day % 90`, each carrying its own date and a 3-bit mask |
+| Records | 90 ring slots addressed by `day % 90`, each carrying its own date and a 6-bit mask |
 | Streak | Consecutive days for one habit, counted back from today; a day still in progress does not break it |
 | Day boundary | 04:00, so a check-in at 03:59 belongs to the previous day |
 | Storage | NVS, field-by-field little-endian with magic, version, slot-count, and length checks; anything that fails is reported as "no records" instead of being guessed |
 
+Habit order is part of the stored format, because a habit's position is the bit index in
+each day's mask. New habits are therefore appended: the six habits share one byte, and the
+three original ones keep the low bits they have always occupied, so records written by an
+earlier firmware still describe the same habits. Eight habits is the ceiling for this
+format, and a `_Static_assert` turns a wider set into a build error rather than a silent
+format change.
+
 ## Controls
 
-| Key | Main menu | Confirmation window | Records page | Date page |
-| --- | --- | --- | --- | --- |
-| UP / DOWN click | move between the three habits | — | move between habits | adjust the highlighted field |
-| OK click | open the confirmation window | check in | — | next field, then confirm the date |
-| OK long press | open the records page | back to the menu | back to the menu | back (not during first-time setup) |
-| Any key, screen blanked | light the screen; that press is consumed and does not reach the interface | | | |
+| Key | Main menu | Confirmation window | Result page | Month view | Date page |
+| --- | --- | --- | --- | --- | --- |
+| UP / DOWN click | move between habits | — | — | previous / next month | adjust the highlighted field |
+| OK click | open the confirmation window | check in | undo the check-in (within 3 s), otherwise back to the menu | next habit | next field, then confirm the date |
+| OK long press | open the month view | back to the menu | keep the check-in and go back | back to the menu | back (not during first-time setup) |
+| Any key, screen blanked | light the screen; that press is consumed and does not reach the interface | | | | |
+
+The main menu shows three rows at a time and scrolls a window over the habit list, so the
+number of on-screen objects stays fixed no matter how many habits exist. A line under the
+header shows today's completion ("2/6") on the left and the selected habit's streak on the
+right; the selection wraps at both ends while the window itself stops at the list edges, so
+no empty row is ever shown.
+
+## Undoing a mis-tap
+
+A check-in is one press away, so the success page doubles as a three-second undo window:
+while it is up, pressing OK removes that habit's check-in for today and returns to the
+menu, and long-pressing OK keeps the check-in and returns. The window can only be used
+once, and the undo is written to flash — otherwise the check-in would reappear on the next
+boot.
+
+Undo is deliberately silent. The visible result is the feedback: the row loses its filled
+marker and the completion counter drops. A rising tone would read as "achieved", which is
+the opposite of what happened. The undo hint only appears on a page that can actually be
+undone, so the "today already checked in" page never invites a press that would do nothing.
+
+## Month view
+
+Long-pressing OK opens a calendar for one habit at a time: the month and year as the
+heading, the habit and its streak underneath, then a seven-column grid with one numbered
+cell per day. A checked-in day is filled green, today gets a yellow outline, and padding
+cells outside the month are hidden. Pressing OK cycles through the six habits.
+
+The grid is always seven columns by six rows — the smallest fixed shape that fits any
+month, because a 31-day month starting on a Sunday occupies 37 cells. Switching months or
+habits therefore only rewrites the 42 existing cells instead of rebuilding the page.
+
+Navigation stops at both ends rather than wrapping: the newest month is the current one,
+and the oldest is the month containing `today - 89`, which follows from the 90 ring slots.
+Earlier days are no longer in the store, so paging further back could only show an empty
+grid and would look like data loss. On a fresh device the streak line reads "no records
+yet" instead of "0 consecutive days".
 
 A successful check-in turns the result card green and plays two rising square-wave notes;
 a refused repeat plays one low note and writes nothing to flash. A failed NVS write is
@@ -87,10 +130,11 @@ application contains no pin constants of its own.
 | --- | --- |
 | `main/main.c` | minimal entry point |
 | `main/habit_app.c` | event task, NVS writes, wall-clock base, idle timing, deep-sleep sequence |
-| `main/habit_ui.c`, `habit_strings.h` | the five pixel-art pages and the single source of on-screen text |
+| `main/habit_ui.c` | the five pixel-art pages, including the scrolling menu and the month grid |
+| `main/habit_strings.h` | the single source of on-screen text |
 | `main/habit_audio.c` | tone generation on its own task, with the suspend handshake used before sleep |
 | `main/habit_device.c` | the only file that touches the RTC counter, RTC memory, and NVS |
-| `main/habit_date.c`, `habit_model.c`, `habit_clock.c`, `habit_store.c` | pure C logic and encodings, covered by host tests |
+| `main/habit_date.c`, `habit_model.c`, `habit_clock.c`, `habit_store.c` | pure C logic and encodings, covered by host tests. `habit_date.c` carries the month cursor the calendar pages through. |
 
 Concurrency is deliberately narrow: button and timer callbacks only enqueue events, and one
 task owns the interface, the records, and every storage write.
@@ -125,7 +169,10 @@ logging it as the very first line of `app_main`.
 The interface uses Ark Pixel, licensed under OFL-1.1, at 12 px and 24 px. Text lives only in
 `main/habit_strings.h`; the glyph subset is generated from that file. Changing any on-screen
 string therefore requires regenerating the fonts — the procedure and the exact
-`lv_font_conv` flags are documented in [`assets/README.md`](../../assets/README.md).
+`lv_font_conv` flags are documented in [`assets/README.md`](../../assets/README.md). The
+host test `tests/test_app_font_coverage.py` keeps that honest: it derives the CJK inventory
+from the text header and fails if the charset list or either generated subset does not
+cover every character the interface can print.
 
 ## Verification status
 
@@ -134,5 +181,19 @@ reaches deep sleep about 30 s after the last key press (the serial port drops); 
 wakes it, twice in a row, with the date still trusted afterwards.
 
 Not yet confirmed on hardware: the 15 s backlight blanking (visible only to the eye, it
-leaves no log), the records page, the streak, the duplicate-check-in refusal, the tones,
-and the numeric wake-cause value in the ready line.
+leaves no log), the duplicate-check-in refusal, the tones, and the numeric wake-cause value
+in the ready line.
+
+The six-habit release has not been run on hardware at all yet. Specifically unverified:
+the scrolling three-row window at both ends of the list and its wrap-around, the today
+counter and the streak line tracking the selection, and an upgrade in which records written
+by the three-habit firmware are read back after flashing the application partition.
+
+The month view is also unrun on hardware: the weekday columns lining up with real dates
+across months that need five versus six rows, the today outline, the month clamp at both
+ends, the habit cycle, and whether a screen of 42 cells plus 42 labels renders without a
+visible delay on a key press.
+
+The undo window is unrun on hardware as well: undoing inside the three seconds and seeing
+the check-in stay gone after a reboot, letting the window expire and seeing the check-in
+kept, and long-pressing OK during the window without losing the check-in.

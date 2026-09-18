@@ -19,11 +19,11 @@
 
 | 文件 | 格式 | 用途与来源 |
 | --- | --- | --- |
-| [`fonts/app_font_12.c`](fonts/app_font_12.c) | LVGL 1 bpp，12 px，151 个字形 | 正文、提示与日期。位图数据 1369 字节。 |
-| [`fonts/app_font_24.c`](fonts/app_font_24.c) | LVGL 1 bpp，24 px，151 个字形 | 类别名与打卡结果标题。位图数据 5200 字节；已逐一验证为 `app_font_12` 的**精确 2 倍整数放大**，而不是轮廓字体在 24 px 下的重采样。 |
-| [`fonts/app_font_charset.txt`](fonts/app_font_charset.txt) | UTF-8 文本，56 个码点 | 汉字清单。由 UI 文案唯一来源 `main/habit_strings.h` 派生；该文件变动后必须重新生成字体。 |
+| [`fonts/app_font_12.c`](fonts/app_font_12.c) | LVGL 1 bpp，12 px，160 个字形 | 正文、提示与月历日期数字。`glyph_bitmap[]` 为 1245 字节。 |
+| [`fonts/app_font_24.c`](fonts/app_font_24.c) | LVGL 1 bpp，24 px，160 个字形 | 类别名、月份标题与打卡结果标题。`glyph_bitmap[]` 为 3357 字节；已逐一验证为 `app_font_12` 的**精确 2 倍整数放大**，而不是轮廓字体在 24 px 下的重采样。 |
+| [`fonts/app_font_charset.txt`](fonts/app_font_charset.txt) | UTF-8 文本，65 个码点 | 汉字清单。由 UI 文案唯一来源 `main/habit_strings.h` 派生；该文件变动后必须重新生成字体。 |
 
-两个字库都包含可打印 ASCII `U+0020`-`U+007E` 加上上表的清单。
+两个字库都包含可打印 ASCII `U+0020`-`U+007F` 加上上表的清单。字形数不计 `glyph_dsc[]` 里保留的 `id = 0` 项；字节数指 `glyph_bitmap[]` 数组的长度。
 
 - **源字体：** 方舟像素字体（Ark Pixel Font）12 px 比例宽度、简体中文子集，发布版 `2026.09.01`，来自 `https://github.com/TakWolf/ark-pixel-font`。源文件为资源包 `ark-pixel-font-12px-proportional-ttf-v2026.09.01.zip` 中的 `ark-pixel-12px-proportional-zh_cn.ttf`。该源文件**刻意不入库**（资源包 33 MB）；用 `gh release download 2026.09.01 --repo TakWolf/ark-pixel-font --pattern "*12px-proportional-ttf-v*"` 获取。
 - **许可：** SIL Open Font License 1.1，版权归 2021 TakWolf。资源包内附 `OFL.txt`；生成的子集须沿用同一许可，且不要把字体名用作生成符号名。
@@ -33,7 +33,8 @@
   - 共用参数：`--range 0x20-0x7F --symbols "$(tr -d '\n' < assets/fonts/app_font_charset.txt)" --bpp 1 --format lvgl --no-compress --no-kerning --lv-include lvgl.h`
 - **不要改用 16 px 版本。** 它的汉字覆盖不完整：`U+4E00`-`U+4EFF` 区间 256 个码点只命中 43 个，等宽 TTF 与比例 OTF 同样如此；12 px 版本命中 255 个。24 px 子集由 12 px 轮廓以两倍尺寸栅格化得到，之所以精确，是因为这些字形轮廓是 12 px 网格上的轴对齐矩形。
 - **集成方式：** 通过 `main/CMakeLists.txt` 的 `target_sources` 挂载；字体要设在**实际绘制文本的控件**上，设在主题或屏幕上是无效的。
-- **Flash 开销：** 两个子集的位图合计 6.6 KB。无运行时分配，无需 PSRAM。
+- **Flash 开销：** 两个子集的位图合计 4.5 KB。无运行时分配，无需 PSRAM。
+- **覆盖由测试强制。** `tests/test_app_font_coverage.py` 从 `main/habit_strings.h` 提取汉字清单，要求本清单文件与它严格一致，并要求两个子集覆盖界面会打印的每一个字符。新增文案却不重新生成字体，会在主机测试阶段失败，而不是等到真机上看到方块。
 
 ## 图片（images）
 

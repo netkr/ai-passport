@@ -13,10 +13,14 @@
 
 // ---------------------------------------------------------------------------
 // 打卡类别。顺序即主菜单显示顺序,也是记录位图里 bit 的顺序(model 侧依赖)。
+// 新增类别只能追加在末尾 —— 插在中间会让已存的老记录被解释成别的项目。
 // ---------------------------------------------------------------------------
-#define HABIT_LABEL_SLEEP    "早睡"
-#define HABIT_LABEL_EXERCISE "锻炼"
-#define HABIT_LABEL_QUIT     "戒烟"
+#define HABIT_LABEL_SLEEP      "早睡"
+#define HABIT_LABEL_EXERCISE   "锻炼"
+#define HABIT_LABEL_QUIT       "戒烟"
+#define HABIT_LABEL_WATER      "喝水"
+#define HABIT_LABEL_READ       "阅读"
+#define HABIT_LABEL_EARLY_RISE "早起"
 
 // ---------------------------------------------------------------------------
 // 主菜单
@@ -25,6 +29,9 @@
 #define STR_BATTERY       "%d%%"
 #define STR_DONE_MARK     "已打"
 #define STR_TODO_MARK     "未打"
+// 顶栏下方那条状态行:左边是当天完成度,右边是选中项的连续天数。
+#define STR_TODAY_PROGRESS "今日 %d/%d"
+#define STR_STREAK         "连续%d天"
 #define STR_MENU_HINT     "上下选择 确定打卡"
 #define STR_MENU_HINT_REC "长按看记录"
 
@@ -41,13 +48,20 @@
 // ---------------------------------------------------------------------------
 #define STR_CHECKED_IN "打卡成功"
 #define STR_ALREADY    "今天已打卡"
+// 只在结果页真的可以撤销时显示(见 habit_ui.c 的 result_build)。
+#define STR_UNDO_HINT  "确定撤销"
 
 // ---------------------------------------------------------------------------
-// 记录页
+// 记录页:整月网格
+//
+// 页面顶部是年月与当前类别,网格里每格一天(已打卡=实心绿),底部是操作提示。
 // ---------------------------------------------------------------------------
-#define STR_RECORD_TITLE "打卡记录"
-#define STR_STREAK        "连续%d天"
-#define STR_NO_RECORD     "暂无记录"
+#define STR_MONTH_FORMAT   "%d年%d月"     // 例:2026年9月
+// 操作提示分两行:换月与换项在同一行,返回单独一行(底部只有两行的空间)。
+#define STR_CAL_HINT       "上下换月 确定换项"
+// 一次记录都还没有时替代"连续0天"。"连续0天"没错,但读起来像在责备;
+// 而且此时用户更需要知道的是"还没开始记",而不是一个零。
+#define STR_NO_RECORD      "暂无记录"
 // 星期表头。索引 0..6 对应周一到周日。
 #define STR_WEEKDAY_1 "一"
 #define STR_WEEKDAY_2 "二"

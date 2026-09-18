@@ -149,7 +149,11 @@ static void apply_effect(habit_ui_effect_t effect)
         refresh_mark();  // 立即建立锚点,缩短下次掉电后需要人工确认的窗口
         save_records();  // 日期基准变了,把墙钟一并写进持久数据
     }
-    if ((effect & HABIT_UI_EFFECT_RECORDS_CHANGED) != 0) {
+    if ((effect & HABIT_UI_EFFECT_RECORD_UNDONE) != 0) {
+        // 撤销同样要落盘,否则重启后那次打卡又回来了。但不出声:把"撤销"做成
+        // 成功音会让人以为自己又完成了一次。
+        save_records();
+    } else if ((effect & HABIT_UI_EFFECT_RECORDS_CHANGED) != 0) {
         save_records();
         habit_audio_play(HABIT_SOUND_OK);
     }

@@ -182,6 +182,72 @@ static void test_adjust_year_cycles_and_clamps(void)
     assert(leap_day.year == 2025 && leap_day.month == 2 && leap_day.day == 28);
 }
 
+static void test_month_cursor_reference_values(void)
+{
+    // 期望值同样由 Python datetime 独立生成。每行给出该月 1 号的日序号、
+    // 当月天数,以及 1 号是星期几(0=周一)。
+    const struct {
+        int32_t year, month, first_day, days, weekday;
+    } cases[] = {
+        { 2026, 9,  20697, 30, 1 },
+        { 2026, 6,  20605, 30, 0 },
+        { 2026, 2,  20485, 28, 6 },
+        { 2024, 2,  19754, 29, 3 },
+        { 2026, 1,  20454, 31, 3 },
+        { 2026, 12, 20788, 31, 1 },
+        { 2025, 12, 20423, 31, 0 },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        const int32_t index = cases[i].year * 12 + cases[i].month - 1;
+
+        // 月内任意一天(首日、月中、末日)都必须归属同一个月份。
+        assert(habit_month_index_of_day(cases[i].first_day) == index);
+        assert(habit_month_index_of_day(cases[i].first_day + 14) == index);
+        assert(habit_month_index_of_day(cases[i].first_day + cases[i].days - 1) == index);
+
+        // 网格需要的三样东西:1 号的日序号、当月天数、1 号的星期偏移。
+        assert(habit_month_first_day(index) == cases[i].first_day);
+        assert(habit_date_days_in_month(cases[i].year, cases[i].month) == cases[i].days);
+        assert(habit_date_weekday(cases[i].first_day) == cases[i].weekday);
+    }
+}
+
+static void test_month_cursor_is_consistent_across_boundaries(void)
+{
+    // 逐月推进的连续性:下个月 1 号减去本月 1 号,必须正好是本月天数。
+    // 这段区间刻意跨过 2026-12 → 2027-01,年份不进位就会在这里暴露。
+    for (int32_t index = 24310; index < 24336; index++) {
+        const int32_t first = habit_month_first_day(index);
+        const habit_date_t date = habit_date_from_days(first);
+
+        assert(date.day == 1);                              // 一定是 1 号
+        assert(habit_month_index_of_day(first) == index);    // 互推无损
+        const int8_t wd = habit_date_weekday(first);
+        assert(wd >= 0 && wd <= 6);
+
+        const int32_t next = habit_month_first_day(index + 1);
+        assert(next - first == habit_date_days_in_month(date.year, date.month));
+    }
+
+    // 网格行数:1 号最晚是周日(偏移 6),最长月 31 天,合计占用 37 格,
+    // 向上取整即 6 行 —— 固定 6 行对任何月份都够,UI 因此不必按月份改结构。
+    const int cells_needed = 6 + 31;
+    assert((cells_needed + 6) / 7 == 6);
+}
+
+static void test_month_cursor_handles_negative_index(void)
+{
+    // 月序号为负时按向下取整解释。向零取整会让 -1 落回第 0 年 12 月,
+    // 互推就不自洽了 —— 这里靠往返一致把它挡住,不依赖绝对期望值。
+    for (int32_t index = -14; index <= 0; index++) {
+        const int32_t first = habit_month_first_day(index);
+        assert(habit_month_index_of_day(first) == index);
+        assert(habit_date_from_days(first).day == 1);
+    }
+    // 相邻关系在负数区间同样成立(0 年 12 月 → 1 年 1 月)。
+    assert(habit_month_first_day(1) - habit_month_first_day(0) == 31);
+}
+
 int main(void)
 {
     test_epoch_days();
@@ -189,6 +255,9 @@ int main(void)
     test_days_in_month();
     test_is_valid();
     test_logical_day_boundary();
+    test_month_cursor_reference_values();
+    test_month_cursor_is_consistent_across_boundaries();
+    test_month_cursor_handles_negative_index();
     test_adjust_day();
     test_adjust_month_clamps_day();
     test_adjust_year_cycles_and_clamps();

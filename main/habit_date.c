@@ -59,6 +59,26 @@ int8_t habit_date_weekday(int32_t days)
     return (int8_t)(((days % 7) + 7 + 3) % 7);
 }
 
+int32_t habit_month_index_of_day(int32_t day)
+{
+    const habit_date_t date = habit_date_from_days(day);
+    return date.year * 12 + ((int32_t)date.month - 1);
+}
+
+int32_t habit_month_first_day(int32_t month_index)
+{
+    // 用向下取整而不是 C 的向零取整:-1 这类序号表示"第 -1 年的 12 月",
+    // 向零取整会算出第 0 年的 12 月,整整差一年。
+    int32_t year = month_index / 12;
+    int32_t month = month_index - year * 12;   // 0..11
+    if (month < 0) {
+        month += 12;
+        year -= 1;
+    }
+    return habit_date_to_days((habit_date_t){
+        .year = year, .month = (uint8_t)(month + 1), .day = 1 });
+}
+
 static habit_date_t clamp_day(habit_date_t date)
 {
     const int32_t limit = habit_date_days_in_month(date.year, date.month);
