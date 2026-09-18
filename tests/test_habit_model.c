@@ -45,8 +45,8 @@ static void test_every_habit_has_its_own_bit(void)
     habit_records_t records;
     habit_records_clear(&records);
 
-    // 6 项各自对应一个独立的 bit。位序是存储格式的一部分:新增项必须追加在
-    // 末尾,已存的老记录(低 3 位)才不会被解释成别的项目。
+    // 4 项各自对应一个独立的 bit。位序是存储格式的一部分:新增项必须追加在
+    // 末尾,已存的老记录(低位)才不会被解释成别的项目。
     for (int i = 0; i < HABIT_COUNT; i++) {
         assert(habit_records_check_in(&records, DAY, (habit_id_t)i) == HABIT_CHECKIN_OK);
         assert(habit_records_mask(&records, DAY) == (uint8_t)((1u << (i + 1)) - 1u));
@@ -74,7 +74,7 @@ static void test_day_count(void)
     assert(habit_records_check_in(&records, DAY, HABIT_SLEEP) == HABIT_CHECKIN_ALREADY);
     assert(habit_records_day_count(&records, DAY) == 1);
 
-    assert(habit_records_check_in(&records, DAY, HABIT_EARLY_RISE) == HABIT_CHECKIN_OK);
+    assert(habit_records_check_in(&records, DAY, HABIT_QUIT) == HABIT_CHECKIN_OK);
     assert(habit_records_check_in(&records, DAY, HABIT_READ) == HABIT_CHECKIN_OK);
     assert(habit_records_day_count(&records, DAY) == 3);
 
@@ -97,20 +97,20 @@ static void test_undo(void)
 
     assert(habit_records_check_in(&records, DAY, HABIT_SLEEP) == HABIT_CHECKIN_OK);
     assert(habit_records_check_in(&records, DAY, HABIT_READ) == HABIT_CHECKIN_OK);
-    assert(habit_records_mask(&records, DAY) == 0x11);  // bit0 与 bit4
+    assert(habit_records_mask(&records, DAY) == 0x09);  // bit0 与 bit3
 
     // 撤销只清自己那一位。
     assert(habit_records_undo(&records, DAY, HABIT_SLEEP));
-    assert(habit_records_mask(&records, DAY) == 0x10);
+    assert(habit_records_mask(&records, DAY) == 0x08);
     assert(habit_records_day_count(&records, DAY) == 1);
 
     // 幂等:再撤一次返回 false,且状态不变。
     assert(!habit_records_undo(&records, DAY, HABIT_SLEEP));
-    assert(habit_records_mask(&records, DAY) == 0x10);
+    assert(habit_records_mask(&records, DAY) == 0x08);
 
     // 撤销后可以重新打卡(撤销不是"永久封锁")。
     assert(habit_records_check_in(&records, DAY, HABIT_SLEEP) == HABIT_CHECKIN_OK);
-    assert(habit_records_mask(&records, DAY) == 0x11);
+    assert(habit_records_mask(&records, DAY) == 0x09);
 
     // 别的日期不受影响。
     assert(habit_records_check_in(&records, DAY + 1, HABIT_SLEEP) == HABIT_CHECKIN_OK);

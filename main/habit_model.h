@@ -19,11 +19,7 @@ typedef enum {
     HABIT_SLEEP = 0,   // 早睡
     HABIT_EXERCISE,    // 锻炼
     HABIT_QUIT,        // 戒烟
-    // 追加项一律排在后面:枚举值就是记录位图里的 bit 序号,插在中间会把
-    // 已存的老记录解释成另一项。
-    HABIT_WATER,       // 喝水
     HABIT_READ,        // 阅读
-    HABIT_EARLY_RISE,  // 早起
     HABIT_COUNT,
 } habit_id_t;
 
@@ -52,7 +48,7 @@ void habit_records_clear(habit_records_t *records);
 // 指定日期的打卡位图;无记录返回 0。
 uint8_t habit_records_mask(const habit_records_t *records, int32_t day);
 
-// 指定日期已打卡的项目数(0..HABIT_COUNT)。主菜单的"今日 n/6"用它。
+// 指定日期已打卡的项目数(0..HABIT_COUNT)。主菜单的"今日 n/N"用它。
 uint32_t habit_records_day_count(const habit_records_t *records, int32_t day);
 
 habit_checkin_result_t habit_records_check_in(habit_records_t *records, int32_t day,

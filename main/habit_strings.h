@@ -15,12 +15,10 @@
 // 打卡类别。顺序即主菜单显示顺序,也是记录位图里 bit 的顺序(model 侧依赖)。
 // 新增类别只能追加在末尾 —— 插在中间会让已存的老记录被解释成别的项目。
 // ---------------------------------------------------------------------------
-#define HABIT_LABEL_SLEEP      "早睡"
-#define HABIT_LABEL_EXERCISE   "锻炼"
-#define HABIT_LABEL_QUIT       "戒烟"
-#define HABIT_LABEL_WATER      "喝水"
-#define HABIT_LABEL_READ       "阅读"
-#define HABIT_LABEL_EARLY_RISE "早起"
+#define HABIT_LABEL_SLEEP    "早睡"
+#define HABIT_LABEL_EXERCISE  "锻炼"
+#define HABIT_LABEL_QUIT      "戒烟"
+#define HABIT_LABEL_READ      "阅读"
 
 // ---------------------------------------------------------------------------
 // 主菜单

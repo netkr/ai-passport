@@ -16,7 +16,8 @@
 #include "habit_model.h"
 
 // 布局版本。字段含义或数量变化时必须自增。
-#define HABIT_STORE_VERSION 1u
+// v2:从 6 项习惯(早睡/锻炼/戒烟/喝水/阅读/早起)收紧到 4 项,位图重排,旧记录失效。
+#define HABIT_STORE_VERSION 2u
 #define HABIT_STORE_MAGIC 0x314B4248u  /* "HBK1" */
 
 typedef struct {

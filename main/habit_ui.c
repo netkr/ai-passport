@@ -80,10 +80,10 @@ static habit_ui_state_t *s_state;
 static lv_obj_t *s_scr;
 static page_t s_page;
 
-// 类别名称与 habit_id_t 一一对应,只在本文件定义一次(以前三个页面各写一份)。
+// 类别名称与 habit_id_t 一一对应,只在本文件定义一次。
 static const char *const k_habit_labels[HABIT_COUNT] = {
     HABIT_LABEL_SLEEP, HABIT_LABEL_EXERCISE, HABIT_LABEL_QUIT,
-    HABIT_LABEL_WATER, HABIT_LABEL_READ, HABIT_LABEL_EARLY_RISE,
+    HABIT_LABEL_READ,
 };
 // 少写一项会让后面的槽位变成空指针,所以让编译器在构建期拦住。
 _Static_assert(sizeof(k_habit_labels) / sizeof(k_habit_labels[0]) == HABIT_COUNT,
